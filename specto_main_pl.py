@@ -108,7 +108,7 @@ class AudioEmotionClassifier(pl.LightningModule):
 
 if __name__ == "__main__":
     # Path to the RAVDESS dataset
-    audio_dir = r"C:\Users\gnith\Desktop\multi_modal_audio_speech\ravdess_dataset"
+    audio_dir = r"C:\Users\gnith\Desktop\multi_modal_audio_speech\ravdess_dataset_1"
 
     # Get train and validation dataloaders (make sure this uses the spectrogram version)
     train_loader, val_loader = get_data_loaders(audio_dir, batch_size=2)  # Can use larger batch size with ViT

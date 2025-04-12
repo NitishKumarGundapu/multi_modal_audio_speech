@@ -2,3 +2,7 @@ ravdess_dataset
 ravdess_dataset_1
 lightning_logs
 __pycache__
+videos
+frames
+ravdess_all_videos
+multimodal_dataset_temp.pickle

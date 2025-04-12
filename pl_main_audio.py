@@ -18,8 +18,8 @@ class AudioEmotionClassifier(pl.LightningModule):
         # self.audio_encoder = HubertModel.from_pretrained("facebook/hubert-base-ls960")
         self.audio_encoder = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base-960h")
 
-        # for param in self.audio_encoder.parameters():
-        #     param.requires_grad = True
+        for param in self.audio_encoder.parameters():
+            param.requires_grad = True
 
         # Classifier head
         self.classifier = nn.Sequential(
@@ -43,10 +43,15 @@ class AudioEmotionClassifier(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        audio_input, labels = batch['input_values'], batch['emotions']
-        logits = self(audio_input)
-        loss = nn.CrossEntropyLoss()(logits, labels)
-        self.log("val_loss", loss, on_epoch=True, prog_bar=True)
+        loss = 0
+        try:
+            audio_input, labels = batch['input_values'], batch['emotions']
+            logits = self(audio_input)
+            loss = nn.CrossEntropyLoss()(logits, labels)
+            self.log("val_loss", loss, on_epoch=True, prog_bar=True)
+        except:
+            print("Error in validation step:", batch)
+            return 0
         return loss
 
     def configure_optimizers(self):

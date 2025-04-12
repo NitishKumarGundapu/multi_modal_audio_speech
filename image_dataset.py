@@ -4,6 +4,7 @@ import pickle
 import numpy as np
 from facenet_pytorch import MTCNN
 import torch
+from tqdm import tqdm
 
 class ImageDataset:
     def __init__(self, project_directory, frames_resolution=(64, 64, 1), conf_threshold=0.8):
@@ -51,7 +52,7 @@ class ImageDataset:
         data = []
         frames_folders = sorted(os.listdir(frames_folder), key=int)
 
-        for i, folder_name in enumerate(frames_folders):
+        for i, folder_name in tqdm(enumerate(frames_folders)):
             if i < folder_start_index:
                 continue
 
@@ -116,26 +117,28 @@ class ImageDataset:
             else:
                 print("Directory doesn't exist or contains insufficient frames")
 
+            # break
+
         return data
 
     def save_data(self, data, file_name):
-        file_path = os.path.join(self.project_directory, "dataset", file_name)
+        file_path = os.path.join(self.project_directory, file_name)
         with open(file_path, 'wb') as handle:
             pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == "__main__":
     project_dir = os.getcwd()
-    processor = EmotionDataProcessor(project_dir)
+    processor = ImageDataset(project_dir)
 
     # Convert videos to frames
-    processor.convert_videos_to_frames('dataset\\TrainingVideos', 'dataset\\TrainingFrames')
-    processor.convert_videos_to_frames('dataset\\TestVideos', 'dataset\\TestFrames')
+    # processor.convert_videos_to_frames('videos\\Actor_01', 'frames')
+    # processor.convert_videos_to_frames('dataset\\TestVideos', 'dataset\\TestFrames')
 
     # Process frames to pickle
-    train_data = processor.process_frames_to_pickle('dataset\\TrainingFrames', 'dataset\\train_data.pickle')
-    test_data = processor.process_frames_to_pickle('dataset\\TestFrames', 'dataset\\test_data.pickle')
+    train_data = processor.process_frames_to_pickle('frames', 'frames\\data.pickle', frames_count=120)
+    # test_data = processor.process_frames_to_pickle('dataset\\TestFrames', 'dataset\\test_data.pickle')
 
     # Save processed data
     processor.save_data(train_data, "train_data.pickle")
-    processor.save_data(test_data, "test_data.pickle")
+    # processor.save_data(test_data, "test_data.pickle")

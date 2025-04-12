@@ -2,12 +2,12 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
-import timm  # Import timm library for ViT
-from spectogram_dataset import get_data_loaders  # Make sure this imports the spectrogram version
+import timm 
+from multimodal_dataset import MultimodalDataProcessor  # Assuming you have a dataset class for loading your data
 
 
 class AudioEmotionClassifier(pl.LightningModule):
-    def __init__(self, num_classes, model_name='vit_base_patch16_224', pretrained=True):
+    def __init__(self, num_classes, model_name='vit_base_patch16_224', pretrained=True, class_weights=None):
         super(AudioEmotionClassifier, self).__init__()
         
         # Load ViT model from timm
@@ -15,7 +15,7 @@ class AudioEmotionClassifier(pl.LightningModule):
             model_name,
             pretrained=pretrained,
             num_classes=0,  # We'll add our own head
-            in_chans=3  # Our spectrograms have 3 channels
+            in_chans=1  # Our spectrograms have 1 channel
         )
         
         # Get the feature dimension of the ViT
@@ -36,6 +36,9 @@ class AudioEmotionClassifier(pl.LightningModule):
         # Spectrogram stats for normalization (adjust based on your data)
         self.register_buffer('spectrogram_mean', torch.tensor([0.5]))
         self.register_buffer('spectrogram_std', torch.tensor([0.5]))
+        
+        # Class weights for weighted loss
+        self.class_weights = torch.tensor(class_weights, dtype=torch.float32) if class_weights is not None else None
 
     def _init_weights(self, module):
         """Initialize weights for linear layers"""
@@ -52,26 +55,36 @@ class AudioEmotionClassifier(pl.LightningModule):
         features = self.vit(x)
         
         # Classify
-        # logits = self.classifier(features)
-        return features
+        logits = self.classifier(features)
+        return logits
 
     def training_step(self, batch, batch_idx):
-        spectrograms, labels = batch['spectrograms'], batch['emotions']
-        logits = self(spectrograms)
-        loss = nn.CrossEntropyLoss()(logits, labels)
+        # Extract audio and emotion from the multimodal dataset
+        audio = batch['audio']
+        labels = batch['emotion']
+        
+        # Forward pass
+        logits = self(audio)
+        loss_fn = nn.CrossEntropyLoss(weight=self.class_weights.to(self.device) if self.class_weights is not None else None)
+        loss = loss_fn(logits, labels)
         
         # Calculate accuracy
         preds = torch.argmax(logits, dim=1)
         acc = (preds == labels).float().mean()
         
         self.log("train_loss", loss, on_epoch=True, prog_bar=True)
-        # self.log("train_acc", acc, on_epoch=True, prog_bar=True)
+        self.log("train_acc", acc, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        spectrograms, labels = batch['spectrograms'], batch['emotions']
-        logits = self(spectrograms)
-        loss = nn.CrossEntropyLoss()(logits, labels)
+        # Extract audio and emotion from the multimodal dataset
+        audio = batch['audio']
+        labels = batch['emotion']
+        
+        # Forward pass
+        logits = self(audio)
+        loss_fn = nn.CrossEntropyLoss(weight=self.class_weights.to(self.device) if self.class_weights is not None else None)
+        loss = loss_fn(logits, labels)
         
         # Calculate accuracy
         preds = torch.argmax(logits, dim=1)
@@ -107,22 +120,20 @@ class AudioEmotionClassifier(pl.LightningModule):
 
 
 if __name__ == "__main__":
-    # Path to the RAVDESS dataset
-    audio_dir = r"C:\Users\gnith\Desktop\multi_modal_audio_speech\ravdess_dataset_1"
-
-    # Get train and validation dataloaders (make sure this uses the spectrogram version)
-    train_loader, val_loader = get_data_loaders(audio_dir, batch_size=2)  # Can use larger batch size with ViT
+    # Path to the multimodal dataset
+    multimodel_dataloader = MultimodalDataProcessor("multimodal_dataset_temp.pickle", batch_size=2)
+    train_dataloader, val_dataloader, test_dataloader, class_weights = multimodel_dataloader.process() 
 
     # Initialize the model
-    model = AudioEmotionClassifier(num_classes=8, model_name='vit_base_patch16_224', pretrained=True)
+    model = AudioEmotionClassifier(num_classes=8, model_name='vit_base_patch16_224', pretrained=True, class_weights=class_weights)
 
     # Initialize the PyTorch Lightning trainer
     trainer = pl.Trainer(
-        max_epochs=20,
+        max_epochs=10,
         devices=1,
         accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         # precision=16  # Mixed precision training
     )
 
     # Train the model
-    trainer.fit(model, train_loader, val_loader)
+    trainer.fit(model, train_dataloader, val_dataloader)
